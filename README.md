@@ -1,9 +1,7 @@
 # Pocket openFPGA SLAP FIGHT / ALCON Core with support for Analogizer-FPGA adapter
 * Analogizer V1.0.0 [12/11/2024]: Added initial support for Analogizer adapter (RGBS, RGsB, YPbPr, Y/C, SVGA Scandoubler) and SNAC.
 
-Adapted to Analogizer by [@RndMnkIII](https://github.com/RndMnkIII) based on **Anton Gale** SLAP FIGHT / ALCON FPGA core for the Analogue Pocket platform:
-https://github.com/obsidian-dot-dev/openFPGA-AtariSystem1
-
+Adapted to Analogizer by [@RndMnkIII](https://github.com/RndMnkIII) based on **Anton Gale** SLAP FIGHT / ALCON FPGA core for the Analogue Pocket platform.
 The core can output RGBS, RGsB, YPbPr, Y/C and SVGA scandoubler(0%, 25%, 50% 75% scanlines and HQ2x) video signals.
 
 | Video output | Status |
