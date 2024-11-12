@@ -16,6 +16,7 @@ module slapfight_fpga(
 	input ram_clk,
 	input clk_master,
 	input [7:0] pcb,	
+	output core_pix_clk,
 	output [3:0] RED,     	//from fpga core to sv
 	output [3:0] GREEN,		//from fpga core to sv
 	output [3:0] BLUE,		//from fpga core to sv
@@ -50,7 +51,7 @@ module slapfight_fpga(
 //SLAPFIGHT - CLOCKS
 reg clkm_24MHZ, clkm_12MHZ, clkm_3MHZ, clkm_1p5MHZ,clkm_6MHZ;
 reg clkb_3MHZ,clkb_6MHZ,clkc_6MHZ;
-wire pixel_clk;
+reg pixel_clk;
 
 //core clock generation logic based on jtframe code
 reg [4:0] cencnt =5'd0;
@@ -63,6 +64,7 @@ always @(posedge clk_master) begin //48
 	clkm_24MHZ	  	<= cencnt[0]   == 1'd0;
 	clkm_12MHZ		<= cencnt[1:0] == 2'd0;
 	clkm_6MHZ		<= cencnt[2:0] == 3'd0;
+	pixel_clk		<= cencnt[2:0] == 3'd2;
 	clkb_6MHZ		<= cencnt[2:0] == 3'd4;	
 	clkc_6MHZ		<= cencnt[2:0] == 3'd6;		
    clkm_3MHZ		<= cencnt[3:0] == 4'd0;
@@ -70,7 +72,8 @@ always @(posedge clk_master) begin //48
    clkm_1p5MHZ		<= cencnt[4:0] == 5'd0;		
 end
 
-assign pixel_clk=clkb_6MHZ;
+assign core_pix_clk=pixel_clk;
+//assign pixel_clk=clkb_6MHZ;
 
 //SLAPFIGHT PIXEL REGISTERS & COUNTERS
 reg [7:0] VPIX,VSCRL_sum_in;

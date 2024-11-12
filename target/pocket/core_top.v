@@ -236,19 +236,19 @@ module core_top (
 
     // cart is unused, so set all level translators accordingly
     // directions are 0:IN, 1:OUT
-    assign cart_tran_bank3 = 8'hzz;
-    assign cart_tran_bank3_dir = 1'b0;
-    assign cart_tran_bank2 = 8'hzz;
-    assign cart_tran_bank2_dir = 1'b0;
-    assign cart_tran_bank1 = 8'hzz;
-    assign cart_tran_bank1_dir = 1'b0;
-    assign cart_tran_bank0 = 4'hf;
-    assign cart_tran_bank0_dir = 1'b1;
-    assign cart_tran_pin30 = 1'b0;      // reset or cs2, we let the hw control it by itself
-    assign cart_tran_pin30_dir = 1'bz;
-    assign cart_pin30_pwroff_reset = 1'b0;  // hardware can control this
-    assign cart_tran_pin31 = 1'bz;      // input
-    assign cart_tran_pin31_dir = 1'b0;  // input
+    // assign cart_tran_bank3 = 8'hzz;
+    // assign cart_tran_bank3_dir = 1'b0;
+    // assign cart_tran_bank2 = 8'hzz;
+    // assign cart_tran_bank2_dir = 1'b0;
+    // assign cart_tran_bank1 = 8'hzz;
+    // assign cart_tran_bank1_dir = 1'b0;
+    // assign cart_tran_bank0 = 4'hf;
+    // assign cart_tran_bank0_dir = 1'b1;
+    // assign cart_tran_pin30 = 1'b0;      // reset or cs2, we let the hw control it by itself
+    // assign cart_tran_pin30_dir = 1'bz;
+    // assign cart_pin30_pwroff_reset = 1'b0;  // hardware can control this
+    // assign cart_tran_pin31 = 1'bz;      // input
+    // assign cart_tran_pin31_dir = 1'b0;  // input
 
     // link port is input only
     assign port_tran_so = 1'bz;
@@ -310,7 +310,7 @@ module core_top (
     //
     // host/target command handler
     //
-    wire            reset_n;                // driven by host commands, can be used as core-wide reset
+    wire            reset_n /* synthesis keep */;                // driven by host commands, can be used as core-wide reset
     wire    [31:0]  cmd_bridge_rd_data;
 
     // bridge host commands
@@ -473,6 +473,7 @@ module core_top (
             32'hF1000000: begin bridge_rd_data <= bridge_read_buffer; end //! DIP
             32'hF2000000: begin bridge_rd_data <= bridge_read_buffer; end //! MOD
             32'hF3000000: begin bridge_rd_data <= bridge_read_buffer; end //! Scanlines
+            32'hF7000000: begin bridge_rd_data <= bridge_read_buffer; end //! Analogizer
             32'hF8xxxxxx: begin bridge_rd_data <= cmd_bridge_rd_data; end //! Pocket Bridge
             default:      begin bridge_rd_data <= 0; end
         endcase
@@ -482,7 +483,7 @@ module core_top (
     reg  [31:0] reset_timer;
     reg         core_reset = 1;
     reg         core_reset_reg = 1;
-    wire        core_reset_s;
+    wire        core_reset_s /* synthesis keep */;
     reg         temp_reset;
 
     reg  [31:0] def_dsw = 0;
@@ -492,17 +493,19 @@ module core_top (
     wire [31:0] def_dsw_s, def_mod_s, def_scnl_s;
 
     always @(posedge clk_74a) begin
-        temp_reset <= 0;                                                                                    //! Always default this to zero
-        if(bridge_wr && bridge_addr == 32'hF0000000) begin temp_reset <= 1;                             end //! Reset Core Command
-        if(bridge_wr && bridge_addr == 32'hF1000000) begin def_dsw  <= bridge_wr_data; temp_reset <= 1; end //! DIP Switches
-        if(bridge_wr && bridge_addr == 32'hF2000000) begin def_mod  <= bridge_wr_data;                  end //! Core Mode Selection
-        if(bridge_wr && bridge_addr == 32'hF3000000) begin def_scnl <= bridge_wr_data;                  end //! Scanlines
+        temp_reset <= 0;                                                                                      //! Always default this to zero
+        if(bridge_wr && bridge_addr == 32'hF0000000) begin temp_reset <= 1;                               end //! Reset Core Command
+        if(bridge_wr && bridge_addr == 32'hF1000000) begin def_dsw  <= bridge_wr_data; temp_reset <= 1;   end //! DIP Switches
+        if(bridge_wr && bridge_addr == 32'hF2000000) begin def_mod  <= bridge_wr_data;                    end //! Core Mode Selection
+        if(bridge_wr && bridge_addr == 32'hF3000000) begin def_scnl <= bridge_wr_data;                    end //! Scanlines
+        if(bridge_wr && bridge_addr == 32'hF7000000) begin analogizer_settings  <=  bridge_wr_data[13:0]; end //! Analogizer settings
         if(bridge_rd) begin
             casex(bridge_addr)
-                32'hF0000000: begin bridge_read_buffer <= core_reset_reg; end
-                32'hF1000000: begin bridge_read_buffer <= def_dsw;        end
-                32'hF2000000: begin bridge_read_buffer <= def_mod;        end
-                32'hF3000000: begin bridge_read_buffer <= def_scnl;       end
+                32'hF0000000: begin bridge_read_buffer <= core_reset_reg;              end
+                32'hF1000000: begin bridge_read_buffer <= def_dsw;                     end
+                32'hF2000000: begin bridge_read_buffer <= def_mod;                     end
+                32'hF3000000: begin bridge_read_buffer <= def_scnl;                    end
+                32'hF7000000: begin bridge_read_buffer <= {18'h0,analogizer_settings}; end
             endcase
         end
     end
@@ -533,9 +536,185 @@ module core_top (
     wire [7:0] DSW1  = def_dsw_s[15:8];
     wire [7:0] DSW2  = def_dsw_s[23:16];
     wire [7:0] MODE  = def_mod_s[7:0];
-    wire       RESET = ~(reset_n && core_reset_s);
+    wire       RESET = ~(reset_n && core_reset_s) /* synthesis keep */;
 	 wire [2:0] vid_preset_s;
-	 
+	
+    /*[ANALOGIZER_HOOK_BEGIN]*/
+    //Pocket Menu settings
+    reg [13:0] analogizer_settings = 0;
+    wire [13:0] analogizer_settings_s;
+
+    synch_3 #(.WIDTH(14)) sync_analogizer(analogizer_settings, analogizer_settings_s, clk_sys);
+
+    always @(*) begin
+        snac_game_cont_type   = analogizer_settings_s[4:0];
+        snac_cont_assignment  = analogizer_settings_s[9:6];
+        analogizer_video_type = analogizer_settings_s[13:10];
+    end
+
+     //switch between Analogizer SNAC and Pocket Controls for P1-P4 (P3,P4 when uses PCEngine Multitap)
+  wire [15:0] p1_btn, p2_btn, p3_btn, p4_btn;
+  reg [15:0] p1_controls, p2_controls, p3_controls, p4_controls;
+  //reg [15:0] p1_stick, p2_stick, p3_stick, p4_stick;
+
+  always @(posedge clk_sys) begin
+    if(snac_game_cont_type == 5'h0) begin //SNAC is disabled
+                  p1_controls <= cont1_key;
+                  p2_controls <= cont2_key;
+
+    end
+    else begin
+      case(snac_cont_assignment)
+      4'h0:    begin 
+                  p1_controls <= p1_btn;
+                  p2_controls <= cont2_key;
+                end
+      4'h1:    begin 
+                  p1_controls <= cont1_key;
+                  p2_controls <= p1_btn;
+                end
+      4'h2:    begin
+                  p1_controls <= p1_btn;
+                  p2_controls <= p2_btn;
+                end
+      4'h3:    begin
+                  p1_controls <= p2_btn;
+                  p2_controls <= p1_btn;
+                end
+      default: begin
+                  p1_controls <= cont1_key;
+                  p2_controls <= cont2_key;
+                end
+      endcase
+    end
+  end
+
+    //*** Analogizer Interface V1.1 ***
+    reg analogizer_ena;
+    reg [3:0] analogizer_video_type;
+    reg [4:0] snac_game_cont_type /* synthesis keep */;
+    reg [3:0] snac_cont_assignment /* synthesis keep */;
+
+    //wire SYNC /* synthesis keep */;
+    // wire ANALOGIZER_DE = ~(slapfight_hb | slapfight_vb) /* synthesis keep */;
+
+// SET PAL and NTSC TIMING and pass through status bits. ** YC must be enabled in the qsf file **
+wire [39:0] CHROMA_PHASE_INC;
+wire PALFLAG;
+
+// adjusted for 48_000_000 video clock
+localparam [39:0] NTSC_PHASE_INC = 40'd81994819784; // ((NTSC_REF * 2^40) / CLK_VIDEO_NTSC)
+localparam [39:0] PAL_PHASE_INC  = 40'd101558653516; // ((PAL_REF * 2^40) / CLK_VIDEO_PAL)
+
+// Send Parameters to Y/C Module
+assign CHROMA_PHASE_INC = (analogizer_video_type == 4'h4) || (analogizer_video_type == 4'hC) ? PAL_PHASE_INC : NTSC_PHASE_INC; 
+assign PALFLAG = (analogizer_video_type == 4'h4) || (analogizer_video_type == 4'hC); 
+
+//Csync = (slapfight_hs & slapfight_vs) Based on Schematics
+// synch_3 #(.WIDTH(30)) sync_video({ slapfight_rgb24,slapfight_hs,slapfight_vs,~(slapfight_hs ^ slapfight_vs),slapfight_hb,slapfight_vb,ANALOGIZER_DE}, {color_s,sync_s,blank_s}, clk_sys);
+// wire [23:0] color_s; //RGB24
+// wire [2:0] sync_s;  //h_sync, v_sync, CSYNC
+// wire [2:0] blank_s; //h_blank, v_blank, BLANKn
+// wire clkvid_s /* synthesis keep */;
+// synch_3 #(.WIDTH(1)) sync_clkvid({clk_vid}, {clkvid_s}, clk_sys);
+
+reg [2:0] fx /* synthesis preserve */;
+always @(posedge clk_sys) begin
+    case (analogizer_video_type)
+        4'd5, 4'd13:    fx <= 3'd0; //SC  0%
+        4'd6, 4'd14:    fx <= 3'd2; //SC  50%
+        4'd7, 4'd15:    fx <= 3'd4; //hq2x
+        default:        fx <= 3'd0;
+    endcase
+end
+
+
+//video fix
+wire hs_fix,vs_fix;
+sync_fix sync_v(clk_sys, slapfight_hs, hs_fix);
+sync_fix sync_h(clk_sys, slapfight_vs, vs_fix);
+
+reg [23:0] RGB_fix;
+
+reg CE,HS,VS,HBL,VBL;
+always @(posedge clk_sys) begin
+	reg old_ce;
+	old_ce <= clk_vid;
+	CE <= 0;
+	if(~old_ce & clk_vid) begin
+		CE <= 1;
+		HS <= hs_fix;
+		if(~HS & hs_fix) VS <= vs_fix;
+
+		RGB_fix <= slapfight_rgb24;
+		HBL <= slapfight_hb;
+		if(HBL & ~slapfight_hb) VBL <= slapfight_vb;
+	end
+end
+
+wire ANALOGIZER_BLANKn = ~(HBL | VBL) /* synthesis keep */;
+wire ANALOGIZER_CSYNC = ~(HS ^ VS);
+
+//48_000_000
+openFPGA_Pocket_Analogizer #(.MASTER_CLK_FREQ(48_000_000), .LINE_LENGTH(280)) analogizer (
+	.i_clk(clk_sys),
+	.i_rst((RESET)), //i_rst is active high
+	.i_ena(1'b1),
+	//Video interface
+    .video_clk(clk_sys),
+	.analog_video_type(analogizer_video_type),
+    .R(RGB_fix[23:16]),
+	.G(RGB_fix[15:8] ),
+	.B(RGB_fix[7:0]  ),
+    .Hblank(HBL),
+    .Vblank(VBL),
+    .BLANKn(ANALOGIZER_BLANKn),
+    .Hsync(HS),
+	.Vsync(VS),
+    .Csync(ANALOGIZER_CSYNC), //composite SYNC on HSync.
+    // .R(slapfight_rgb24[23:16]),
+	// .G(slapfight_rgb24[15:8] ),
+	// .B(slapfight_rgb24[7:0]  ),
+    // .Hblank(slapfight_hb),
+    // .Vblank(slapfight_vb),
+    // .BLANKn(ANALOGIZER_DE),
+    // .Hsync(slapfight_hs),
+	// .Vsync(slapfight_vs),
+    // .Csync((~slapfight_hs & ~slapfight_vs)), //composite SYNC on HSync.
+    //Video Y/C Encoder interface
+    .CHROMA_PHASE_INC(CHROMA_PHASE_INC),
+    .PALFLAG(PALFLAG),
+    //Video SVGA Scandoubler interface
+    .ce_pix(CE),
+    .scandoubler(1'b1), //logic for disable/enable the scandoubler
+	.fx(fx), //0 disable, 1 scanlines 25%, 2 scanlines 50%, 3 scanlines 75%, 4 hq2x
+	//SNAC interface
+	.conf_AB((snac_game_cont_type >= 5'd16)),              //0 conf. A(default), 1 conf. B (see graph above)
+	.game_cont_type(snac_game_cont_type), //0-15 Conf. A, 16-31 Conf. B
+	.p1_btn_state(p1_btn),
+	.p2_btn_state(p2_btn),  
+    .p3_btn_state(p3_btn),
+	.p4_btn_state(p4_btn),  
+	//Pocket Analogizer IO interface to the Pocket cartridge port
+	.cart_tran_bank2(cart_tran_bank2),
+	.cart_tran_bank2_dir(cart_tran_bank2_dir),
+	.cart_tran_bank3(cart_tran_bank3),
+	.cart_tran_bank3_dir(cart_tran_bank3_dir),
+	.cart_tran_bank1(cart_tran_bank1),
+	.cart_tran_bank1_dir(cart_tran_bank1_dir),
+	.cart_tran_bank0(cart_tran_bank0),
+	.cart_tran_bank0_dir(cart_tran_bank0_dir),
+	.cart_tran_pin30(cart_tran_pin30),
+	.cart_tran_pin30_dir(cart_tran_pin30_dir),
+	.cart_pin30_pwroff_reset(cart_pin30_pwroff_reset),
+	.cart_tran_pin31(cart_tran_pin31),
+	.cart_tran_pin31_dir(cart_tran_pin31_dir),
+	//debug
+	.o_stb()
+);
+/*[ANALOGIZER_HOOK_END]*/
+
+
     //! ------------------------------------------------------------------------------------
     //! Data I/O
     //! ------------------------------------------------------------------------------------
@@ -573,7 +752,7 @@ module core_top (
     pocket_gamepad
         player1 (
             .iCLK   ( clk_sys   ),
-            .iJOY   ( cont1_key ),
+            .iJOY   ( p1_controls ),
 
             .PAD_U  ( p1_up    ),
             .PAD_D  ( p1_down  ),
@@ -594,7 +773,7 @@ module core_top (
     pocket_gamepad
         player2 (
             .iCLK   ( clk_sys   ),
-            .iJOY   ( cont2_key ),
+            .iJOY   ( p2_controls ),
 
             .PAD_U  ( p2_up    ),
             .PAD_D  ( p2_down  ),
@@ -637,6 +816,7 @@ module core_top (
     //! ------------------------------------------------------------------------------------
 
    wire [8:0] control_panel = ~{m_coin,m_start2p,m_start1p,m_shoot2,m_shoot,m_up,m_down,m_left,m_right};
+   wire core_pix_clk /* synthesis keep */;
  
     //!!!!!!!!!!!!!!!!!!!!!!!!!!!INSTANTIATE CORE RTL HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	slapfight_fpga slapcore
@@ -645,6 +825,7 @@ module core_top (
 		.clk_master(clk_sys),
 		.pcb(MODE),
 		
+        //.core_pix_clk(core_pix_clk),
 		.RED(slapfight_rgb[11:8]),
 		.GREEN(slapfight_rgb[7:4]),
 		.BLUE(slapfight_rgb[3:0]),
@@ -685,8 +866,8 @@ module core_top (
     //! ------------------------------------------------------------------------------------
     //! Pocket Video
     //! ------------------------------------------------------------------------------------
-    wire [23:0] s_video_rgb;
-    wire        s_video_hs, s_video_vs, s_video_de;
+    wire [23:0] s_video_rgb /* synthesis keep */;
+    wire        s_video_hs, s_video_vs, s_video_de /* synthesis keep */;
     wire  [3:0] s_scanlines = def_scnl_s[3:0];
 
     scanlines scnl
@@ -749,8 +930,8 @@ module core_top (
     //! ------------------------------------------------------------------------------------
     //! Clocks
     //! ------------------------------------------------------------------------------------
-    wire clk_sys;        //! Core: 48.000Mhz
-    wire clk_vid;        //! Video: 6.000Mhz
+    wire clk_sys /* synthesis keep */;        //! Core: 48.000Mhz
+    wire clk_vid /* synthesis keep */;        //! Video: 6.000Mhz
     wire clk_vid_90deg;  //! Video: 6.000Mhz @ 90deg Phase Shift
     wire pll_core_locked;
 
@@ -766,5 +947,33 @@ module core_top (
             .locked   ( pll_core_locked )
         );
     //! @end
+
+endmodule
+
+
+module sync_fix
+(
+	input clk,
+	
+	input sync_in,
+	output sync_out
+);
+
+assign sync_out = sync_in ^ pol;
+
+reg pol;
+always @(posedge clk) begin
+	reg [31:0] cnt;
+	reg s1,s2;
+
+	s1 <= sync_in;
+	s2 <= s1;
+	cnt <= s2 ? (cnt - 1) : (cnt + 1);
+
+	if(~s2 & s1) begin
+		cnt <= 0;
+		pol <= cnt[31];
+	end
+end
 
 endmodule

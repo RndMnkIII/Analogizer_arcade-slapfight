@@ -5,12 +5,12 @@
             "platform_ids": [
                 "slapfight"
             ],
-            "shortname": "slapfight",
-            "description": "Toaplan Slap Fight gateware IP Core",
+            "shortname": "slapfight_Analogizer",
+            "description": "[Analogizer] Toaplan Slap Fight gateware IP Core",
             "author": "antongale",
-            "url": "https://github.com/antongale/arcade-slapfight",
-            "version": "<%- VERSION %>",
-            "date_release": "<%- RELEASE_DATE %>"
+            "url": "https://github.com/RndMnkIII/Analogizer_arcade-slapfight",
+            "version": "<1.0>",
+            "date_release": "<2024-11-12>"
         },
         "framework": {
             "target_product": "Analogue Pocket",
@@ -22,7 +22,7 @@
             },
             "hardware": {
                 "link_port": false,
-                "cartridge_adapter": -1
+                "cartridge_adapter": 0
             }
         },
         "cores": [
