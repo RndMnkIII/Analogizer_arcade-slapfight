@@ -251,14 +251,14 @@ module core_top (
     // assign cart_tran_pin31_dir = 1'b0;  // input
 
     // link port is input only
-    assign port_tran_so = 1'bz;
-    assign port_tran_so_dir = 1'b0;     // SO is output only
-    assign port_tran_si = 1'bz;
-    assign port_tran_si_dir = 1'b0;     // SI is input only
-    assign port_tran_sck = 1'bz;
-    assign port_tran_sck_dir = 1'b0;    // clock direction can change
-    assign port_tran_sd = 1'bz;
-    assign port_tran_sd_dir = 1'b0;     // SD is input and not used
+    // assign port_tran_so = 1'bz;
+    // assign port_tran_so_dir = 1'b0;     // SO is output only
+    // assign port_tran_si = 1'bz;
+    // assign port_tran_si_dir = 1'b0;     // SI is input only
+    // assign port_tran_sck = 1'bz;
+    // assign port_tran_sck_dir = 1'b0;    // clock direction can change
+    // assign port_tran_sd = 1'bz;
+    // assign port_tran_sd_dir = 1'b0;     // SD is input and not used
 
     // tie off the rest of the pins we are not using
     assign cram0_a = 'h0;
@@ -555,35 +555,49 @@ module core_top (
      //switch between Analogizer SNAC and Pocket Controls for P1-P4 (P3,P4 when uses PCEngine Multitap)
   wire [15:0] p1_btn, p2_btn, p3_btn, p4_btn;
   reg [15:0] p1_controls, p2_controls, p3_controls, p4_controls;
-  //reg [15:0] p1_stick, p2_stick, p3_stick, p4_stick;
+  wire [31:0] p1_stick, p2_stick;
+  reg [31:0] p1_joy, p2_joy;
 
   always @(posedge clk_sys) begin
     if(snac_game_cont_type == 5'h0) begin //SNAC is disabled
-                  p1_controls <= cont1_key;
-                  p2_controls <= cont2_key;
+                p1_controls <= cont1_key;
+				p1_joy      <= cont1_joy;
+                p2_controls <= cont2_key;
+                p2_joy      <= cont2_joy;
 
     end
     else begin
-      case(snac_cont_assignment)
+            case(snac_cont_assignment)
       4'h0:    begin 
                   p1_controls <= p1_btn;
                   p2_controls <= cont2_key;
+                  p1_joy      <= p1_stick;
+                  p2_joy      <= (cont2_key[31:28] == 4'h3) ? cont2_joy : 32'h80808080; //0x80 analog joy neutral position
                 end
       4'h1:    begin 
                   p1_controls <= cont1_key;
-                  p2_controls <= p1_btn;
+                  p2_controls <= p1_btn;       
+                  p1_joy      <= (cont1_key[31:28] == 4'h3) ? cont1_joy : 32'h80808080; //0x80 analog joy neutral position
+                  p2_joy      <= p1_stick;
                 end
       4'h2:    begin
                   p1_controls <= p1_btn;
                   p2_controls <= p2_btn;
+                  p1_joy      <= p1_stick;
+                  p2_joy      <= p2_stick;
                 end
       4'h3:    begin
                   p1_controls <= p2_btn;
                   p2_controls <= p1_btn;
+                  p1_joy      <= p2_stick;
+                  p2_joy      <= p1_stick;
                 end
       default: begin
                   p1_controls <= cont1_key;
                   p2_controls <= cont2_key;
+                  p1_joy <= (cont1_key[31:28] == 4'h3) ? cont1_joy : 32'h80808080; //0x80 analog joy neutral position
+                  p2_joy <= (cont2_key[31:28] == 4'h3) ? cont2_joy : 32'h80808080; //0x80 analog joy neutral position
+
                 end
       endcase
     end
@@ -656,6 +670,23 @@ wire ANALOGIZER_BLANKn = ~(HBL | VBL) /* synthesis keep */;
 wire ANALOGIZER_CSYNC = ~(HS ^ VS);
 
 //48_000_000
+//debug port:
+assign port_tran_so_dir = 1'b1;     // SO is output only, check SNAC USB D- or TX- for TX data
+assign port_tran_si_dir = 1'b1;      
+assign port_tran_sck_dir = 1'b1;
+assign port_tran_sd_dir = 1'b1; 
+
+//Rumble FX based on game
+    //MODE = 8'd1 //Tiger Heli
+    wire [7:0] snd_fx_cmd;
+    wire snd_fx_trig; //use rising edge to register snd_fx_cmd
+    // insert coin			0x91
+    // start song           0x13?
+    // killed				0xFE 0x11
+    // fire					0x0B
+    // falling bomb			0x03
+    // hit/                 0x09
+    // sploding bomb        0x09 0x09
 openFPGA_Pocket_Analogizer #(.MASTER_CLK_FREQ(48_000_000), .LINE_LENGTH(280)) analogizer (
 	.i_clk(clk_sys),
 	.i_rst((RESET)), //i_rst is active high
@@ -692,9 +723,13 @@ openFPGA_Pocket_Analogizer #(.MASTER_CLK_FREQ(48_000_000), .LINE_LENGTH(280)) an
 	.conf_AB((snac_game_cont_type >= 5'd16)),              //0 conf. A(default), 1 conf. B (see graph above)
 	.game_cont_type(snac_game_cont_type), //0-15 Conf. A, 16-31 Conf. B
 	.p1_btn_state(p1_btn),
+    .p1_joy_state(p1_stick),
 	.p2_btn_state(p2_btn),  
+    .p2_joy_state(p2_stick),
     .p3_btn_state(p3_btn),
 	.p4_btn_state(p4_btn),  
+    .i_VIB_SW1(p1_btn[5:4]), .i_VIB_DAT1(8'hb0), .i_VIB_SW2(p2_btn[5:4]), .i_VIB_DAT2(8'hb0),
+
 	//Pocket Analogizer IO interface to the Pocket cartridge port
 	.cart_tran_bank2(cart_tran_bank2),
 	.cart_tran_bank2_dir(cart_tran_bank2_dir),
@@ -709,7 +744,8 @@ openFPGA_Pocket_Analogizer #(.MASTER_CLK_FREQ(48_000_000), .LINE_LENGTH(280)) an
 	.cart_pin30_pwroff_reset(cart_pin30_pwroff_reset),
 	.cart_tran_pin31(cart_tran_pin31),
 	.cart_tran_pin31_dir(cart_tran_pin31_dir),
-	//debug
+	//debug {PSX_ATT1,PSX_CLK,PSX_CMD,PSX_DAT}
+    .DBG_TX({port_tran_so, port_tran_si,port_tran_sck,port_tran_sd}),
 	.o_stb()
 );
 /*[ANALOGIZER_HOOK_END]*/
@@ -746,42 +782,76 @@ openFPGA_Pocket_Analogizer #(.MASTER_CLK_FREQ(48_000_000), .LINE_LENGTH(280)) an
     synch_3 s2(osnotify_inmenu, osnotify_inmenu_s, clk_sys);
     //! Player 1 ---------------------------------------------------------------------------
     wire p1_coin,  p1_start;
-    wire p1_up,    p1_down,  p1_left,  p1_right;
+    reg p1_up,    p1_down,  p1_left,  p1_right;
+    wire p1u, p1d, p1l, p1r;
+    wire p1_up_analog, p1_down_analog, p1_left_analog, p1_right_analog;
     wire p1_fire1, p1_fire2;
+
+    //use PSX Dual Shock style left analog stick as directional pad
+    wire is_analog_input = (snac_game_cont_type == 5'h13);
+
+    //using left analog joypad
+    assign p1_up_analog   =  (p1_joy[15:8] < 8'h40) ? 1'b1 : 1'b0; //analog range UP 0x00 Idle 0x7F DOWN 0xFF, DEADZONE +- 0x15
+    assign p1_down_analog =  (p1_joy[15:8] > 8'hC0) ? 1'b1 : 1'b0; 
+    assign p1_left_analog =  (p1_joy[7:0]  < 8'h40) ? 1'b1 : 1'b0; //analog range LEFT 0x00 Idle 0x7F RIGHT 0xFF, DEADZONE +- 0x15
+    assign p1_right_analog = (p1_joy[7:0]  > 8'hC0) ? 1'b1 : 1'b0;
+
+    always @(posedge clk_sys) begin
+        p1_up    <= (is_analog_input) ? p1_up_analog    : p1u;
+        p1_down  <= (is_analog_input) ? p1_down_analog  : p1d;
+        p1_left  <= (is_analog_input) ? p1_left_analog  : p1l;
+        p1_right <= (is_analog_input) ? p1_right_analog : p1r;
+    end
 
     pocket_gamepad
         player1 (
             .iCLK   ( clk_sys   ),
             .iJOY   ( p1_controls ),
 
-            .PAD_U  ( p1_up    ),
-            .PAD_D  ( p1_down  ),
-            .PAD_L  ( p1_left  ),
-            .PAD_R  ( p1_right ),
+            .PAD_U  ( p1u ),
+            .PAD_D  ( p1d ),
+            .PAD_L  ( p1l ),
+            .PAD_R  ( p1r ),
 
-            .BTN_Y  ( p1_fire2 ),
-            .BTN_B  ( p1_fire1 ),
+            .BTN_B  ( p1_fire2 ),
+            .BTN_A  ( p1_fire1 ),
 
             .BTN_SE ( p1_coin  ),
             .BTN_ST ( p1_start )
         );
     //! Player 2 ---------------------------------------------------------------------------
     wire p2_coin, p2_start;
-    wire p2_up, p2_down, p2_left, p2_right;
+    reg p2_up, p2_down, p2_left, p2_right;
     wire p2_fire1, p2_fire2;
+    wire p2u, p2d, p2l, p2r;
+    wire p2_up_analog, p2_down_analog, p2_left_analog, p2_right_analog;
+
+    
+    //using left analog joypad
+    assign p2_up_analog   = (p2_joy[15:8] < 8'h40) ? 1'b1 : 1'b0;
+    assign p2_down_analog = (p2_joy[15:8] > 8'hC0) ? 1'b1 : 1'b0;
+    assign p2_left_analog = (p2_joy[7:0]  < 8'h40) ? 1'b1 : 1'b0;
+    assign p2_right_analog = (p2_joy[7:0]  > 8'hC0) ? 1'b1 : 1'b0;
+
+    always @(posedge clk_sys) begin
+        p2_up    <= (is_analog_input) ? p2_up_analog    : p2u;
+        p2_down  <= (is_analog_input) ? p2_down_analog  : p2d;
+        p2_left  <= (is_analog_input) ? p2_left_analog  : p2l;
+        p2_right <= (is_analog_input) ? p2_right_analog : p2r;
+    end
 
     pocket_gamepad
         player2 (
             .iCLK   ( clk_sys   ),
             .iJOY   ( p2_controls ),
 
-            .PAD_U  ( p2_up    ),
-            .PAD_D  ( p2_down  ),
-            .PAD_L  ( p2_left  ),
-            .PAD_R  ( p2_right ),
+            .PAD_U  ( p2u ),
+            .PAD_D  ( p2d ),
+            .PAD_L  ( p2l ),
+            .PAD_R  ( p2r ),
 
-            .BTN_Y  ( p2_fire2 ),
-            .BTN_B  ( p2_fire1 ),
+            .BTN_B  ( p2_fire2 ),
+            .BTN_A  ( p2_fire1 ),
 
             .BTN_SE ( p2_coin  ),
             .BTN_ST ( p2_start )
@@ -859,9 +929,11 @@ openFPGA_Pocket_Analogizer #(.MASTER_CLK_FREQ(48_000_000), .LINE_LENGTH(280)) an
 		.hs_address(),		//hiscore save stuff removed
 		.hs_data_out(),
 		.hs_data_in(),
-		.hs_write()	
+		.hs_write(),
+        //Analogizer experimental sound fx capture for rumble fx
+        .snd_fx_cmd(snd_fx_cmd),
+	    .snd_fx_trig(snd_fx_trig)
 	);
-
 
     //! ------------------------------------------------------------------------------------
     //! Pocket Video

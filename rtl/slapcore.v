@@ -45,7 +45,11 @@ module slapfight_fpga(
 	input [15:0] hs_address,
 	output [7:0] hs_data_out,
 	input [7:0] hs_data_in,
-	input hs_write
+	input hs_write,
+
+	//Analogizer audio FX rumble interface
+	output reg [7:0] snd_fx_cmd,
+	output reg snd_fx_trig
 );
 
 //SLAPFIGHT - CLOCKS
@@ -600,6 +604,22 @@ dpram_dc #(.widthad_a(11)) S2_U11B //sf
 	.q_b(AUDIO_RAMM_out)
 );
 //assign AUD_in = rAUD_in;
+
+//This code captures when main Z80 send audio fx command to audio Z80
+// insert coin				0x91
+// start song              0x13?
+// killed					0xFE 0x11
+// fire					0x0B
+// falling bomb			0x03
+// hit/                    0x09
+// sploding bomb           0x09 0x09
+always @(posedge clk_master) begin
+	snd_fx_trig <= 1'b0;
+	if ((Z80A_addrbus == 16'hC800) && (!AUDIOM_OK & !Z80_WR) && clkm_6MHZ) begin
+		snd_fx_cmd <= Z80A_databus_out;
+		snd_fx_trig <= 1'b1;
+	end
+end
 
 
 reg [7:0] rAUD_in;

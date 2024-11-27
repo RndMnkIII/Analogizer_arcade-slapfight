@@ -96,9 +96,18 @@ module openFPGA_Pocket_Analogizer #(parameter MASTER_CLK_FREQ=50_000_000, parame
     input wire conf_AB,              //0 conf. A(default), 1 conf. B (see graph above)
     input wire [4:0] game_cont_type, //0-15 Conf. A, 16-31 Conf. B
     output wire [15:0] p1_btn_state,
+	output wire [31:0] p1_joy_state,
     output wire [15:0] p2_btn_state,
+	output wire [31:0] p2_joy_state,
     output wire [15:0] p3_btn_state,
     output wire [15:0] p4_btn_state,
+	//PSX rumble interface joy1, joy2
+    input [1:0] i_VIB_SW1,  //  Vibration SW  VIB_SW[0] Small Moter OFF 0:ON  1:
+                                //VIB_SW[1] Bic Moter   OFF 0:ON  1(Dualshook Only)
+	input [7:0] i_VIB_DAT1,  //  Vibration(Bic Moter)Data   8'H00-8'HFF (Dualshook Only)
+    input [1:0] i_VIB_SW2,
+	input [7:0] i_VIB_DAT2, 
+	// 
 	output wire busy, 
 	//Pocket Analogizer IO interface to the cartridge port
 	inout   wire    [7:0]   cart_tran_bank2,
@@ -115,6 +124,7 @@ module openFPGA_Pocket_Analogizer #(parameter MASTER_CLK_FREQ=50_000_000, parame
 	inout   wire            cart_tran_pin31,
 	output  wire            cart_tran_pin31_dir,
     //debug
+	output wire [3:0] DBG_TX,
     output wire o_stb
 );
 	wire [7:4] CART_BK0_OUT ;
@@ -136,9 +146,12 @@ module openFPGA_Pocket_Analogizer #(parameter MASTER_CLK_FREQ=50_000_000, parame
 		.game_cont_type(game_cont_type), //0-15 Conf. A, 16-31 Conf. B
 		//.game_cont_sample_rate(game_cont_sample_rate), //0 compatibility mode (slowest), 1 normal mode, 2 fast mode, 3 superfast mode
 		.p1_btn_state(p1_btn_state),
+		.p1_joy_state(p1_joy_state),
 		.p2_btn_state(p2_btn_state),
+		.p2_joy_state(p2_joy_state),
 		.p3_btn_state(p3_btn_state),
 		.p4_btn_state(p4_btn_state),
+		.i_VIB_SW1(i_VIB_SW1), .i_VIB_DAT1(i_VIB_DAT1), .i_VIB_SW2(i_VIB_SW2), .i_VIB_DAT2(i_VIB_DAT2), 
 		.busy(busy),    
 		//SNAC Pocket cartridge port interface (see graph above)   
 		.CART_BK0_OUT(CART_BK0_OUT),
@@ -152,6 +165,7 @@ module openFPGA_Pocket_Analogizer #(parameter MASTER_CLK_FREQ=50_000_000, parame
 		.CART_PIN31_IN(CART_PIN31_IN),
 		.CART_PIN31_DIR(CART_PIN31_DIR),
 		//debug
+		.DBG_TX(DBG_TX),
     	.o_stb(o_stb)
 	); 
 
